@@ -1,0 +1,21 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.env 
+vietnamese-legal-documents
+.ruff_cache
+download_dataset.py
+*.csv
+tests
+.pytest_cache
+.code-review-graph
+.uv-cache 
+*.code-workspace
+data

@@ -1,0 +1,34 @@
+from functools import lru_cache
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    app_name: str = "legal-mvp-starter"
+    app_env: str = "local"
+    app_host: str = "0.0.0.0"
+    app_port: int = 8000
+    log_level: str = "INFO"
+
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4.1-mini"
+
+    qdrant_url: str
+    qdrant_api_key: str | None = None
+    qdrant_collection: str = "legal_chunks"
+    qdrant_collection_hybrid: str = "legal_chunks_hybrid_v1"
+    qdrant_embedding_dim: int = 1536
+    dense_embedding_model: str = "sentence-transformers/paraphrase-multilingual-mpnet-base-v2"
+    dense_embedding_device: str | None = None
+    dense_embedding_batch_size: int = 32
+    ingest_checkpoint_db: str = "data/processed/hybrid_ingest_checkpoint.sqlite3"
+    ingest_pipeline_version: str = "hybrid_v1"
+
+    enable_web_search: bool = False
+    firecrawl_api_key: str | None = None
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
