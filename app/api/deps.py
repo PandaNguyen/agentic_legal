@@ -1,44 +1,80 @@
 from fastapi import Depends
+
 from app.core.config import Settings, get_settings
+from app.services.agents.answer_agent import AnswerAgent
+from app.services.agents.router_agent import RouterAgent
+from app.services.agents.runtime import AgentRuntime
+from app.services.agents.verifier_agent import VerifierAgent
+from app.services.legal.evidence_assembler import EvidenceAssemblerService
 from app.services.llm.openai_client import OpenAIService
-from app.services.retrieval.qdrant_service import QdrantService
-from app.services.legal.router_service import RouterService
-from app.services.legal.answer_service import AnswerService
-from app.services.legal.verifier_service import VerifierService
 from app.services.orchestrator.legal_flow import LegalFlowRunner
+from app.services.retrieval.qdrant_service import QdrantService
+from app.services.storage.session_repo import SessionRepository
+from app.services.tools.qdrant_search_tool import QdrantSearchTool
+from app.services.tools.web_search_tool import WebSearchTool
+from app.services.web.firecrawl_service import FirecrawlSearchService
 
 
 def get_openai_service(settings: Settings = Depends(get_settings)) -> OpenAIService:
     return OpenAIService(settings)
 
 
-def get_qdrant_service(
-    settings: Settings = Depends(get_settings),
-) -> QdrantService:
+def get_agent_runtime(openai_service: OpenAIService = Depends(get_openai_service)) -> AgentRuntime:
+    return AgentRuntime(openai_service)
+
+
+def get_qdrant_service(settings: Settings = Depends(get_settings)) -> QdrantService:
     return QdrantService(settings)
 
 
-def get_router_service(openai_service: OpenAIService = Depends(get_openai_service)) -> RouterService:
-    return RouterService(openai_service)
+def get_firecrawl_service(settings: Settings = Depends(get_settings)) -> FirecrawlSearchService:
+    return FirecrawlSearchService(settings)
 
 
-def get_answer_service(openai_service: OpenAIService = Depends(get_openai_service)) -> AnswerService:
-    return AnswerService(openai_service)
+def get_qdrant_search_tool(qdrant_service: QdrantService = Depends(get_qdrant_service)) -> QdrantSearchTool:
+    return QdrantSearchTool(qdrant_service)
 
 
-def get_verifier_service(openai_service: OpenAIService = Depends(get_openai_service)) -> VerifierService:
-    return VerifierService(openai_service)
+def get_web_search_tool(firecrawl_service: FirecrawlSearchService = Depends(get_firecrawl_service)) -> WebSearchTool:
+    return WebSearchTool(firecrawl_service)
+
+
+def get_router_agent(runtime: AgentRuntime = Depends(get_agent_runtime)) -> RouterAgent:
+    return RouterAgent(runtime)
+
+
+def get_answer_agent(openai_service: OpenAIService = Depends(get_openai_service)) -> AnswerAgent:
+    return AnswerAgent(openai_service)
+
+
+def get_verifier_agent(runtime: AgentRuntime = Depends(get_agent_runtime)) -> VerifierAgent:
+    return VerifierAgent(runtime)
+
+
+def get_evidence_assembler() -> EvidenceAssemblerService:
+    return EvidenceAssemblerService()
+
+
+def get_session_repo() -> SessionRepository:
+    return SessionRepository()
 
 
 def get_legal_flow_runner(
-    router_service: RouterService = Depends(get_router_service),
-    qdrant_service: QdrantService = Depends(get_qdrant_service),
-    answer_service: AnswerService = Depends(get_answer_service),
-    verifier_service: VerifierService = Depends(get_verifier_service),
+    router_agent: RouterAgent = Depends(get_router_agent),
+    qdrant_search_tool: QdrantSearchTool = Depends(get_qdrant_search_tool),
+    web_search_tool: WebSearchTool = Depends(get_web_search_tool),
+    evidence_assembler: EvidenceAssemblerService = Depends(get_evidence_assembler),
+    answer_agent: AnswerAgent = Depends(get_answer_agent),
+    verifier_agent: VerifierAgent = Depends(get_verifier_agent),
+    session_repo: SessionRepository = Depends(get_session_repo),
 ) -> LegalFlowRunner:
     return LegalFlowRunner(
-        router_service=router_service,
-        qdrant_service=qdrant_service,
-        answer_service=answer_service,
-        verifier_service=verifier_service,
+        router_agent=router_agent,
+        qdrant_search_tool=qdrant_search_tool,
+        web_search_tool=web_search_tool,
+        evidence_assembler=evidence_assembler,
+        answer_agent=answer_agent,
+        verifier_agent=verifier_agent,
+        session_repo=session_repo,
     )
+
