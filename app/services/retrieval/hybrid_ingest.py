@@ -5,9 +5,9 @@ import json
 import sys
 import traceback
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from qdrant_client import models
 
@@ -19,9 +19,11 @@ from app.services.retrieval.hybrid_support import (
     DENSE_VECTOR_NAME,
     DEFAULT_PIPELINE_VERSION,
     SPARSE_VECTOR_NAME,
+    BM25_MODEL_NAME,
+    DEFAULT_BM25_OPTIONS,
     SentenceTransformerDenseEncoder,
+    build_bm25_document,
     build_chunk_payload,
-    build_sparse_vector,
     deterministic_point_id,
 )
 from app.services.retrieval.qdrant_service import QdrantService
@@ -46,19 +48,48 @@ class HybridIngestConfig:
     chunk_overlap: int = 64
     table_chunk_size: int = 500
     import_sidecar: bool = True
+    sparse_model_name: str = BM25_MODEL_NAME
+    bm25_options: dict[str, Any] = field(default_factory=lambda: dict(DEFAULT_BM25_OPTIONS))
+
+
+class HybridPointSink(Protocol):
+    async def ensure_collection(self, vector_size: int, collection_name: str) -> None:
+        ...
+
+    async def write_points(self, points: list[models.PointStruct], collection_name: str) -> None:
+        ...
+
+
+class QdrantPointSink:
+    def __init__(self, qdrant_service: QdrantService) -> None:
+        self.qdrant_service = qdrant_service
+
+    async def ensure_collection(self, vector_size: int, collection_name: str) -> None:
+        await self.qdrant_service.ensure_hybrid_collection(
+            vector_size=vector_size,
+            collection_name=collection_name,
+        )
+
+    async def write_points(self, points: list[models.PointStruct], collection_name: str) -> None:
+        await self.qdrant_service.upsert_points(points, collection_name=collection_name)
 
 
 class HybridIngestPipeline:
     def __init__(
         self,
         config: HybridIngestConfig,
-        qdrant_service: QdrantService,
         checkpoint_store: SQLiteCheckpointStore,
+        qdrant_service: QdrantService | None = None,
+        point_sink: HybridPointSink | None = None,
         dense_encoder: SentenceTransformerDenseEncoder | None = None,
     ) -> None:
         self.config = config
-        self.qdrant_service = qdrant_service
         self.checkpoint_store = checkpoint_store
+        if point_sink is None:
+            if qdrant_service is None:
+                raise ValueError("Either qdrant_service or point_sink must be provided")
+            point_sink = QdrantPointSink(qdrant_service)
+        self.point_sink = point_sink
         self.dense_encoder = dense_encoder or SentenceTransformerDenseEncoder(
             model_name=config.dense_model_name,
             device=config.device,
@@ -84,7 +115,7 @@ class HybridIngestPipeline:
             self.checkpoint_store.recover_interrupted_docs()
         self.checkpoint_store.start_run(self.run_id, self._run_args())
 
-        await self.qdrant_service.ensure_hybrid_collection(
+        await self.point_sink.ensure_collection(
             vector_size=self.dense_encoder.embedding_dimension,
             collection_name=self.config.collection_name,
         )
@@ -148,18 +179,17 @@ class HybridIngestPipeline:
 
         payloads = [build_chunk_payload(chunk, self.config.pipeline_version) for chunk in chunks]
         dense_vectors = self.dense_encoder.encode_documents([payload["context_text"] for payload in payloads])
-        sparse_vectors = [
-            build_sparse_vector(payload["context_text"], self.checkpoint_store, create_missing=True)
-            or models.SparseVector(indices=[], values=[])
-            for payload in payloads
-        ]
 
         points = [
             models.PointStruct(
                 id=deterministic_point_id(payload["chunk_id"], self.config.pipeline_version),
                 vector={
                     DENSE_VECTOR_NAME: dense_vectors[index],
-                    SPARSE_VECTOR_NAME: sparse_vectors[index],
+                    SPARSE_VECTOR_NAME: build_bm25_document(
+                        payload["context_text"],
+                        model_name=self.config.sparse_model_name,
+                        options=self.config.bm25_options,
+                    ),
                 },
                 payload=payload,
             )
@@ -168,7 +198,7 @@ class HybridIngestPipeline:
 
         for start in range(0, len(points), self.config.qdrant_batch_size):
             batch = points[start : start + self.config.qdrant_batch_size]
-            await self.qdrant_service.upsert_points(batch, collection_name=self.config.collection_name)
+            await self.point_sink.write_points(batch, collection_name=self.config.collection_name)
 
         self.checkpoint_store.mark_done(doc_id, self.run_id, len(points))
         return len(points)

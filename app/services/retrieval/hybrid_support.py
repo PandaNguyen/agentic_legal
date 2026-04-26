@@ -17,6 +17,8 @@ if TYPE_CHECKING:
 
 DENSE_VECTOR_NAME = "dense"
 SPARSE_VECTOR_NAME = "sparse"
+BM25_MODEL_NAME = "Qdrant/bm25"
+DEFAULT_BM25_OPTIONS = {"k": 1.2, "b": 0.75, "language": "none"}
 DEFAULT_PIPELINE_VERSION = "hybrid_v1"
 MAX_RELATED_DOC_IDS = 16
 TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÀ-ỹĐđ]+(?:[./_:-][0-9A-Za-zÀ-ỹĐđ]+)*", flags=re.UNICODE)
@@ -169,6 +171,19 @@ def build_sparse_vector(
     indices = [term_id for term_id, _ in items]
     values = [value for _, value in items]
     return models.SparseVector(indices=indices, values=values)
+
+
+def build_bm25_document(
+    text: str,
+    *,
+    model_name: str = BM25_MODEL_NAME,
+    options: dict[str, Any] | None = None,
+) -> models.Document:
+    return models.Document(
+        text=str(text or ""),
+        model=model_name,
+        options=options or DEFAULT_BM25_OPTIONS,
+    )
 
 
 def deterministic_point_id(chunk_id: str, pipeline_version: str = DEFAULT_PIPELINE_VERSION) -> str:

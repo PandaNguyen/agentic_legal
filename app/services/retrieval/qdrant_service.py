@@ -13,10 +13,12 @@ from app.services.retrieval.hybrid_support import (
     DENSE_VECTOR_NAME,
     SPARSE_VECTOR_NAME,
     SentenceTransformerDenseEncoder,
+    build_bm25_document,
     build_qdrant_filter,
-    build_sparse_vector,
     payload_index_specs,
 )
+
+MIN_NATIVE_BM25_QDRANT_VERSION = (1, 15, 3)
 
 
 class QdrantService:
@@ -34,6 +36,12 @@ class QdrantService:
         self.collection_name = settings.qdrant_collection_hybrid or settings.qdrant_collection
         self._dense_encoder = dense_encoder
         self._checkpoint_store = checkpoint_store
+        self.sparse_model_name = settings.sparse_embedding_model
+        self.bm25_options = {
+            "k": settings.bm25_k,
+            "b": settings.bm25_b,
+            "language": settings.bm25_language,
+        }
 
     async def ensure_collection(self) -> None:
         dense_encoder = self._get_dense_encoder()
@@ -99,15 +107,9 @@ class QdrantService:
         qfilter = build_qdrant_filter(filters)
         dense_query = self._get_dense_encoder().encode_query(query)
 
-        sparse_query = None
-        checkpoint_store = self._get_checkpoint_store(optional=True)
-        if checkpoint_store is not None:
-            sparse_query = build_sparse_vector(query, checkpoint_store, create_missing=False)
+        sparse_query = self._build_sparse_query(query)
 
-        if mode == "sparse" and sparse_query is None:
-            raise ValueError("Sparse search requested but checkpoint vocabulary is unavailable or query has no known sparse terms")
-
-        if mode == "hybrid" and sparse_query is not None:
+        if mode == "hybrid":
             response = await self.client.query_points(
                 collection_name=self.collection_name,
                 prefetch=[
@@ -177,6 +179,15 @@ class QdrantService:
             )
         return results
 
+    async def validate_native_bm25_support(self) -> None:
+        info = await self.client.info()
+        version = _parse_version(info.version)
+        if version < MIN_NATIVE_BM25_QDRANT_VERSION:
+            required = ".".join(str(part) for part in MIN_NATIVE_BM25_QDRANT_VERSION)
+            raise RuntimeError(
+                f"Qdrant {required}+ is required for native BM25 sparse vectors; server reports {info.version}"
+            )
+
     async def _validate_collection(self, collection_name: str, vector_size: int) -> None:
         collection = await self.client.get_collection(collection_name)
         params = collection.config.params
@@ -192,6 +203,13 @@ class QdrantService:
             )
         if SPARSE_VECTOR_NAME not in sparse_vectors:
             raise ValueError(f"Collection {collection_name} does not expose sparse vector '{SPARSE_VECTOR_NAME}'")
+
+    def _build_sparse_query(self, query: str) -> models.Document:
+        return build_bm25_document(
+            query,
+            model_name=self.sparse_model_name,
+            options=self.bm25_options,
+        )
 
     def _get_dense_encoder(self) -> SentenceTransformerDenseEncoder:
         if self._dense_encoder is None:
@@ -224,3 +242,13 @@ def _clean_optional(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _parse_version(version: str) -> tuple[int, int, int]:
+    parts = []
+    for raw_part in str(version).split(".")[:3]:
+        digits = "".join(ch for ch in raw_part if ch.isdigit())
+        parts.append(int(digits or "0"))
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts)  # type: ignore[return-value]

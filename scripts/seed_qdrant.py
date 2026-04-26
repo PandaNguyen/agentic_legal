@@ -12,12 +12,11 @@ from qdrant_client import models  # noqa: E402
 
 from app.core.config import get_settings  # noqa: E402
 from app.schemas.search import SearchFilters  # noqa: E402
-from app.services.retrieval.checkpoint_store import SQLiteCheckpointStore  # noqa: E402
 from app.services.retrieval.hybrid_support import (  # noqa: E402
     DENSE_VECTOR_NAME,
     SPARSE_VECTOR_NAME,
     SentenceTransformerDenseEncoder,
-    build_sparse_vector,
+    build_bm25_document,
     deterministic_point_id,
 )
 from app.services.retrieval.qdrant_service import QdrantService  # noqa: E402
@@ -57,9 +56,6 @@ SAMPLE_CHUNKS = [
 
 async def main() -> None:
     settings = get_settings()
-    checkpoint_path = Path(settings.ingest_checkpoint_db)
-    checkpoint_store = SQLiteCheckpointStore(checkpoint_path)
-    checkpoint_store.init_schema()
 
     dense_encoder = SentenceTransformerDenseEncoder(
         model_name=settings.dense_embedding_model,
@@ -69,21 +65,26 @@ async def main() -> None:
     qdrant_service = QdrantService(
         settings,
         dense_encoder=dense_encoder,
-        checkpoint_store=checkpoint_store,
     )
     await qdrant_service.ensure_hybrid_collection(dense_encoder.embedding_dimension)
 
     vectors = dense_encoder.encode_documents([chunk["context_text"] for chunk in SAMPLE_CHUNKS])
     points: list[models.PointStruct] = []
     for index, chunk in enumerate(SAMPLE_CHUNKS):
-        sparse_vector = build_sparse_vector(chunk["context_text"], checkpoint_store, create_missing=True)
-        sparse_vector = sparse_vector or models.SparseVector(indices=[], values=[])
         points.append(
             models.PointStruct(
                 id=deterministic_point_id(chunk["chunk_id"], settings.ingest_pipeline_version),
                 vector={
                     DENSE_VECTOR_NAME: vectors[index],
-                    SPARSE_VECTOR_NAME: sparse_vector,
+                    SPARSE_VECTOR_NAME: build_bm25_document(
+                        chunk["context_text"],
+                        model_name=settings.sparse_embedding_model,
+                        options={
+                            "k": settings.bm25_k,
+                            "b": settings.bm25_b,
+                            "language": settings.bm25_language,
+                        },
+                    ),
                 },
                 payload=chunk,
             )
@@ -95,7 +96,6 @@ async def main() -> None:
         filters=SearchFilters(nganh=["lao_dong"]),
     )
     print(f"Seeded sample chunks to {settings.qdrant_collection_hybrid}; sample_hits={len(results)}")
-    checkpoint_store.close()
 
 
 if __name__ == "__main__":
