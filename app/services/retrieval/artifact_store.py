@@ -67,6 +67,19 @@ class ArtifactPointSink:
 
     def close(self, stats: dict[str, Any] | None = None) -> None:
         self._close_current_shard()
+        self.write_manifest(stats)
+
+    def checkpoint(self, stats: dict[str, Any] | None = None) -> None:
+        """Finalize the current shard and write a manifest for completed output.
+
+        This is intentionally heavier than a plain flush: gzip files are only
+        safe to reuse/import after the handle is closed, so checkpointing closes
+        the active shard and starts a new one on the next write.
+        """
+        self._close_current_shard()
+        self.write_manifest(stats)
+
+    def write_manifest(self, stats: dict[str, Any] | None = None) -> None:
         manifest = {
             "schema_version": ARTIFACT_SCHEMA_VERSION,
             "pipeline_version": self.pipeline_version,

@@ -36,7 +36,7 @@ import sys
 import time
 import traceback
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -53,9 +53,6 @@ from app.services.retrieval.checkpoint_store import SQLiteCheckpointStore  # noq
 from app.services.retrieval.hybrid_support import (  # noqa: E402
     DENSE_VECTOR_NAME,
     SPARSE_VECTOR_NAME,
-    DEFAULT_PIPELINE_VERSION,
-    BM25_MODEL_NAME,
-    DEFAULT_BM25_OPTIONS,
     SentenceTransformerDenseEncoder,
     build_bm25_document,
     build_chunk_payload,
@@ -122,6 +119,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--embed-batch-size", type=int, default=settings.dense_embedding_batch_size, help="Inner batch size passed to SentenceTransformer.encode().")
     parser.add_argument("--gpu-batch-size", type=int, default=256, help="Number of chunks to collect before flushing through the GPU. Larger = better GPU utilisation.")
     parser.add_argument("--shard-size", type=int, default=10_000, help="Number of points per artifact shard.")
+    parser.add_argument("--manifest-update-flushes", type=int, default=1, help="Write manifest after this many GPU flushes. Use 1 for safest Kaggle-session resume/import.")
     parser.add_argument("--checkpoint-db", default=settings.ingest_checkpoint_db, help="SQLite checkpoint path.")
     parser.add_argument("--dead-letter", default="data/processed/hybrid_artifact_batched_dead_letter.jsonl", help="JSONL file for failed rows.")
     parser.add_argument("--resume", action="store_true", help="Resume from checkpoint DB.")
@@ -162,6 +160,7 @@ class BatchedHybridExportPipeline:
         bm25_options: dict[str, Any],
         gpu_batch_size: int = 256,
         shard_size: int = 10_000,
+        manifest_update_flushes: int = 1,
         resume: bool = False,
         limit: int | None = None,
         chunk_size: int = 500,
@@ -183,6 +182,7 @@ class BatchedHybridExportPipeline:
         self.bm25_options = bm25_options
         self.gpu_batch_size = max(1, gpu_batch_size)
         self.shard_size = shard_size
+        self.manifest_update_flushes = max(0, manifest_update_flushes)
         self.resume = resume
         self.limit = limit
         self.import_sidecar = import_sidecar
@@ -379,6 +379,9 @@ class BatchedHybridExportPipeline:
                 print(f"[ok] doc_id={doc_id} chunks={doc_batch.total_chunks}")
                 del self._doc_batches[doc_id]
 
+        if self.manifest_update_flushes and self.stats["gpu_flushes"] % self.manifest_update_flushes == 0:
+            self.artifact_sink.checkpoint(self.stats)
+
     # ----- helpers -----
 
     def _write_dead_letter(self, doc_id: str, row: dict[str, Any], exc: Exception) -> None:
@@ -400,6 +403,7 @@ class BatchedHybridExportPipeline:
             "collection_name": self.collection_name,
             "pipeline_version": self.pipeline_version,
             "gpu_batch_size": self.gpu_batch_size,
+            "manifest_update_flushes": self.manifest_update_flushes,
             "dense_model_name": self.dense_encoder.model_name,
             "device": self.dense_encoder.device,
             "embed_batch_size": self.dense_encoder.batch_size,
@@ -467,6 +471,7 @@ async def main() -> None:
         },
         gpu_batch_size=args.gpu_batch_size,
         shard_size=args.shard_size,
+        manifest_update_flushes=args.manifest_update_flushes,
         resume=args.resume,
         limit=args.limit,
         chunk_size=args.chunk_size,
