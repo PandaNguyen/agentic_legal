@@ -19,3 +19,4 @@ tests
 .uv-cache 
 *.code-workspace
 data
+log.log

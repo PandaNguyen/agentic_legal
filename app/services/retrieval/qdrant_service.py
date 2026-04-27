@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from qdrant_client import AsyncQdrantClient
 from qdrant_client import models
@@ -32,7 +33,10 @@ class QdrantService:
         checkpoint_store: SQLiteCheckpointStore | None = None,
     ) -> None:
         self.settings = settings
-        self.client = client or AsyncQdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key)
+        self.client = client or AsyncQdrantClient(
+            url=settings.qdrant_url,
+            api_key=_api_key_for_qdrant_url(settings.qdrant_url, settings.qdrant_api_key),
+        )
         self.collection_name = settings.qdrant_collection_hybrid or settings.qdrant_collection
         self._dense_encoder = dense_encoder
         self._checkpoint_store = checkpoint_store
@@ -252,3 +256,12 @@ def _parse_version(version: str) -> tuple[int, int, int]:
     while len(parts) < 3:
         parts.append(0)
     return tuple(parts)  # type: ignore[return-value]
+
+
+def _api_key_for_qdrant_url(url: str, api_key: str | None) -> str | None:
+    if not api_key:
+        return None
+    host = urlparse(url).hostname
+    if host in {"localhost", "127.0.0.1", "::1"}:
+        return None
+    return api_key

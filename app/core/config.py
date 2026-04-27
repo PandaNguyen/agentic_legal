@@ -10,16 +10,20 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8000
     log_level: str = "INFO"
+    log_file: str = "log.log"
 
     openai_api_key: str | None = None
     openai_model: str = "gpt-4.1-mini"
+    openai_llm_model: str | None = None
+    openai_base_url: str | None = None
+    openai_api_style: str = "responses"
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str | None = None
     qdrant_collection: str = "legal_chunks"
-    qdrant_collection_hybrid: str = "legal_chunks_hybrid_v1"
+    qdrant_collection_hybrid: str = "legal_chunks_preview_local"
     qdrant_embedding_dim: int = 1536
-    dense_embedding_model: str = "mainguyen9/vietlegal-harrier-0.6b"
+    dense_embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     dense_embedding_device: str | None = None
     dense_embedding_batch_size: int = 32
     sparse_embedding_model: str = "Qdrant/bm25"
