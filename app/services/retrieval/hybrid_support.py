@@ -87,7 +87,7 @@ class SentenceTransformerDenseEncoder:
         if not texts:
             return []
         model = self._get_model()
-        embeddings = model.encode_document(
+        embeddings = model.encode(
             texts,
             batch_size=self.batch_size,
             show_progress_bar=False,
@@ -96,11 +96,15 @@ class SentenceTransformerDenseEncoder:
             device=self.device,
         )
         return embeddings.tolist()
+    
+    def _buid_instruct_query(self, query: str) -> str:
+        template = """Instruct: Given a Vietnamese legal question, retrieve relevant legal passages that answer the question\nQuery: {query}"""
+        return template.format(query=query)
 
     def encode_query(self, text: str) -> list[float]:
         model = self._get_model()
-        embedding = model.encode_query(
-            text,
+        embedding = model.encode(
+            self._buid_instruct_query(text),
             batch_size=self.batch_size,
             show_progress_bar=False,
             convert_to_numpy=True,
@@ -126,10 +130,12 @@ class SentenceTransformerDenseEncoder:
             self._model = SentenceTransformer(
                 self.model_name,
                 device=self.device,
+                trust_remote_code=True,
                 model_kwargs=model_kwargs or None,
             )
         except TypeError:
-            self._model = SentenceTransformer(self.model_name, device=self.device)
+            self._model = SentenceTransformer(self.model_name,
+             device=self.device)
 
         if self.use_fp16 and self.device and self.device.startswith("cuda") and hasattr(self._model, "half"):
             self._model.half()

@@ -1,12 +1,4 @@
-import pandas as pd
-
-meta_data = pd.read_csv("data\\metadata.csv")
-print(meta_data.head())
-
-content = pd.read_csv("data\\content.csv",encoding="utf-8" )
-content = content.tail(1000)  # Load only the first 1000 rows for preview
-content.to_csv("data\\content_preview.csv", encoding="utf-8", index=False)  # Save the preview to a new CSV file
-print(content.head())
-
-relationships = pd.read_csv("data\\relationships.csv",encoding="utf-8")
-print(relationships.head())
+import sqlite3
+con=sqlite3.connect(r'data\\processed\\hybrid_ingest_checkpoint.sqlite3')
+rows=con.execute('select doc_id, updated_at from doc_status where status=''done'' and chunk_count=0 order by cast(doc_id as integer) limit 50').fetchall()
+print('\n'.join(f'{r[0]} {r[1]}' for r in rows))

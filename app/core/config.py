@@ -20,10 +20,10 @@ class Settings(BaseSettings):
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str | None = None
-    qdrant_collection: str = "legal_chunks"
-    qdrant_collection_hybrid: str = "legal_chunks_preview_local"
-    qdrant_embedding_dim: int = 1536
-    dense_embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    qdrant_collection: str = "legal_chunks_hybrid_v1"
+    qdrant_collection_hybrid: str = "legal_chunks_hybrid_v1"
+    qdrant_embedding_dim: int = 1024
+    dense_embedding_model: str = "mainguyen9/vietlegal-harrier-0.6b"
     dense_embedding_device: str | None = None
     dense_embedding_batch_size: int = 32
     sparse_embedding_model: str = "Qdrant/bm25"
