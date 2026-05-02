@@ -32,6 +32,16 @@ class Settings(BaseSettings):
     bm25_language: str = "none"
     ingest_checkpoint_db: str = "data/processed/hybrid_ingest_checkpoint.sqlite3"
     ingest_pipeline_version: str = "hybrid_v1"
+    retrieval_initial_candidate_limit: int = 200
+    retrieval_document_top_k: int = 20
+    retrieval_max_chunks_per_cluster: int = 20
+    retrieval_chunk_candidate_limit: int = 80
+    enable_local_rerank: bool = True
+    rerank_model_name: str = "AITeamVN/Vietnamese_Reranker"
+    rerank_cache_folder: str = "./cache/hf_cache"
+    rerank_max_length: int = 2304
+    rerank_batch_size: int = 16
+    rerank_device: str | None = None
 
     enable_web_search: bool = False
     firecrawl_api_key: str | None = None

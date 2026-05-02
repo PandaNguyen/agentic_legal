@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.schemas.agentic import RouterDecision
 from app.schemas.chat import ChatRequest
+from app.services.retrieval.filter_policy import allowed_filter_fields, sanitize_search_filters
 from app.services.agents.runtime import AgentRuntime
 
 
@@ -21,6 +22,7 @@ Rules:
 - Use both tools when local evidence should be combined with current validation.
 - If facts are missing, list them but still choose retrieval unless retrieval would be misleading.
 - Keep retrieval_queries short and directly searchable.
+- Only produce filters from allowed_filter_fields in the user context. Ignore uncertain filters.
 - Output field names exactly: intent, sector, answer_mode, risk_level, facts_missing, selected_tools, retrieval_queries, filters, reasoning_summary, confidence.
 """.strip()
 
@@ -44,6 +46,7 @@ class RouterAgent:
                 "user_profile": request.user_profile.model_dump(),
                 "session_history": session_history[-3:],
                 "available_tools": ["qdrant_search", "web_search"],
+                "allowed_filter_fields": allowed_filter_fields(),
             },
             output_schema=RouterDecision,
             fallback=fallback,
@@ -52,5 +55,5 @@ class RouterAgent:
             decision.retrieval_queries = [request.message]
         if not decision.selected_tools:
             decision.selected_tools = ["qdrant_search"]
+        decision.filters = sanitize_search_filters(decision.filters)
         return decision
-

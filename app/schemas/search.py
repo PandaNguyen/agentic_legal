@@ -22,7 +22,7 @@ class SearchRequest(BaseModel):
     query: str
     top_k: int = 5
     search_mode: Literal["hybrid", "dense", "sparse"] = "hybrid"
-    candidate_limit: int = 50
+    candidate_limit: int = 200
     filters: SearchFilters | None = None
 
 

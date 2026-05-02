@@ -18,7 +18,7 @@ class QdrantSearchTool:
         query: str,
         search_mode: str = "hybrid",
         top_k: int = 8,
-        candidate_limit: int = 50,
+        candidate_limit: int = 200,
         filters: SearchFilters | None = None,
     ) -> ToolResult:
         try:
@@ -37,4 +37,3 @@ class QdrantSearchTool:
                 available=False,
                 error=str(exc),
             )
-

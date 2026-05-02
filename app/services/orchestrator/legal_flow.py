@@ -144,7 +144,7 @@ class LegalFlowRunner:
             query=query,
             search_mode="hybrid",
             top_k=8,
-            candidate_limit=50,
+            candidate_limit=200,
             filters=route.filters if route else None,
         )
 
