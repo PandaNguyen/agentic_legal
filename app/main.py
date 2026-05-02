@@ -1,7 +1,10 @@
 import logging
+from pathlib import Path
 from time import perf_counter
 
 from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routers.chat import router as chat_router
 from app.api.routers.search import router as search_router
@@ -11,8 +14,10 @@ from app.core.logging import setup_logging
 settings = get_settings()
 log_path = setup_logging(log_level=settings.log_level, log_file=settings.log_file)
 logger = logging.getLogger(__name__)
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 app = FastAPI(title=settings.app_name)
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 app.include_router(chat_router, prefix="/v1")
 app.include_router(search_router, prefix="/v1")
 logger.info("Application started app=%s env=%s log_file=%s", settings.app_name, settings.app_env, log_path)
@@ -61,3 +66,8 @@ async def log_requests(request: Request, call_next):
 @app.get("/healthz")
 def healthz():
     return {"status": "ok", "env": settings.app_env}
+
+
+@app.get("/", include_in_schema=False)
+def index():
+    return FileResponse(STATIC_DIR / "index.html")

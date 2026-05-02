@@ -35,6 +35,7 @@ class AnswerAgent:
         route: RouterDecision,
         evidence: EvidencePacket,
         trace_id: str,
+        session_history: list[dict] | None = None,
     ) -> ChatResponse:
         if not evidence.items:
             return ChatResponse(
@@ -60,8 +61,10 @@ class AnswerAgent:
                 for item in evidence.items
             ]
         )
+        history_text = self._format_history(session_history or [])
         user_prompt = (
             f"Question:\n{message}\n\n"
+            f"Conversation history for resolving references only:\n{history_text}\n\n"
             f"Answer mode: {route.answer_mode}\n"
             f"Evidence coverage: {evidence.coverage}\n"
             f"Facts missing: {route.facts_missing}\n\n"
@@ -77,6 +80,16 @@ class AnswerAgent:
             follow_up_questions=route.facts_missing,
             trace_id=trace_id,
         )
+
+    def _format_history(self, session_history: list[dict]) -> str:
+        if not session_history:
+            return "No prior turns."
+        lines: list[str] = []
+        for idx, turn in enumerate(session_history[-3:], start=1):
+            user_message = str(turn.get("user_message") or "").strip()
+            assistant_message = str(turn.get("assistant_message") or "").strip()
+            lines.append(f"[Turn {idx}] User: {user_message}\nAssistant: {assistant_message}")
+        return "\n\n".join(lines)
 
     def _initial_confidence(self, coverage: str) -> float:
         if coverage == "sufficient":
@@ -101,4 +114,3 @@ class AnswerAgent:
                 )
             )
         return citations
-

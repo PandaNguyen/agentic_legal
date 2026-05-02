@@ -15,6 +15,9 @@ from app.services.tools.web_search_tool import WebSearchTool
 from app.services.web.firecrawl_service import FirecrawlSearchService
 
 
+_session_repo = SessionRepository(max_turns=10)
+
+
 def get_openai_service(settings: Settings = Depends(get_settings)) -> OpenAIService:
     return OpenAIService(settings)
 
@@ -56,7 +59,7 @@ def get_evidence_assembler() -> EvidenceAssemblerService:
 
 
 def get_session_repo() -> SessionRepository:
-    return SessionRepository()
+    return _session_repo
 
 
 def get_legal_flow_runner(
@@ -77,4 +80,3 @@ def get_legal_flow_runner(
         verifier_agent=verifier_agent,
         session_repo=session_repo,
     )
-

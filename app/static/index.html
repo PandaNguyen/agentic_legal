@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Legal Chat</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="side-panel" aria-label="Session controls">
+        <div>
+          <p class="eyebrow">Agentic Legal</p>
+          <h1>Trợ lý pháp lý</h1>
+          <p class="subtle">Tra cứu nhanh, trả lời kèm căn cứ và câu hỏi bổ sung khi dữ kiện chưa đủ.</p>
+        </div>
+
+        <div class="control-group">
+          <label for="sessionId">Session</label>
+          <div class="session-row">
+            <input id="sessionId" type="text" autocomplete="off" />
+            <button id="newSession" class="icon-button" type="button" title="Tạo session mới" aria-label="Tạo session mới">+</button>
+          </div>
+        </div>
+
+        <div class="control-grid">
+          <label class="toggle-row">
+            <input id="searchWeb" type="checkbox" />
+            <span>Kiểm tra web</span>
+          </label>
+
+          <label class="select-row" for="audience">
+            <span>Người dùng</span>
+            <select id="audience">
+              <option value="consumer">Cá nhân</option>
+              <option value="business">Doanh nghiệp</option>
+            </select>
+          </label>
+        </div>
+
+        <button id="clearSession" class="secondary-button" type="button">Xóa lịch sử session</button>
+      </aside>
+
+      <main class="chat-panel">
+        <header class="chat-header">
+          <div>
+            <p class="eyebrow">Conversation</p>
+            <h2>Hỏi đáp pháp luật Việt Nam</h2>
+          </div>
+          <div id="status" class="status-pill">Sẵn sàng</div>
+        </header>
+
+        <section id="transcript" class="transcript" aria-live="polite"></section>
+
+        <form id="chatForm" class="composer">
+          <textarea
+            id="messageInput"
+            rows="3"
+            minlength="3"
+            placeholder="Nhập câu hỏi pháp lý của bạn..."
+            required
+          ></textarea>
+          <button id="sendButton" type="submit">Gửi</button>
+        </form>
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

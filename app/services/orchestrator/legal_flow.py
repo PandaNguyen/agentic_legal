@@ -62,6 +62,7 @@ class LegalFlowRunner:
             route=state.route,
             evidence=state.evidence,
             trace_id=state.trace_id,
+            session_history=state.session_history,
         )
         state.verifier_decision = await self.verifier_agent.verify(
             message=req.message,
@@ -96,6 +97,7 @@ class LegalFlowRunner:
             route=state.route,
             evidence=state.evidence,
             trace_id=state.trace_id,
+            session_history=state.session_history,
         )
         state.verifier_decision = await self.verifier_agent.verify(
             message=state.request.message,
@@ -178,4 +180,3 @@ class LegalFlowRunner:
         if evidence and evidence.coverage in {"weak", "none"} and not draft.follow_up_questions:
             draft.follow_up_questions = ["Ban co the bo sung them thong tin ve thoi diem, dia phuong hoac van ban lien quan khong?"]
         return draft
-

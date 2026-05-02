@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
@@ -32,3 +32,15 @@ class ChatResponse(BaseModel):
     disclaimer: str
     follow_up_questions: list[str] = []
     trace_id: str
+
+
+class SessionTurn(BaseModel):
+    user_message: str
+    assistant_message: str
+    trace_id: str | None = None
+    citations: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ChatHistoryResponse(BaseModel):
+    session_id: str
+    turns: list[SessionTurn] = Field(default_factory=list)
