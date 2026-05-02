@@ -41,6 +41,81 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function renderInlineMarkdown(value) {
+  const protectedSegments = [];
+  let output = value
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_, label, url) => {
+      const index = protectedSegments.length;
+      protectedSegments.push(`<a href="${url}" target="_blank" rel="noreferrer">${label}</a>`);
+      return `%%SEGMENT${index}%%`;
+    })
+    .replace(/`([^`]+)`/g, (_, code) => {
+      const index = protectedSegments.length;
+      protectedSegments.push(`<code>${code}</code>`);
+      return `%%SEGMENT${index}%%`;
+    })
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/\*([^*\n]+)\*/g, "<em>$1</em>")
+    .replace(/_([^_\n]+)_/g, "<em>$1</em>");
+
+  protectedSegments.forEach((segment, index) => {
+    output = output.replaceAll(`%%SEGMENT${index}%%`, segment);
+  });
+  return output;
+}
+
+function renderMarkdownBlock(block, codeBlocks) {
+  const codeMatch = block.match(/^%%CODE_BLOCK_(\d+)%%$/);
+  if (codeMatch) {
+    return codeBlocks[Number(codeMatch[1])] || "";
+  }
+
+  const lines = block.split("\n").filter((line) => line.trim().length > 0);
+  const heading = block.match(/^(#{1,3})\s+(.+)$/);
+  if (heading) {
+    const level = Math.min(heading[1].length + 2, 5);
+    return `<h${level}>${renderInlineMarkdown(heading[2].trim())}</h${level}>`;
+  }
+
+  if (lines.length > 0 && lines.every((line) => /^[-*]\s+/.test(line.trim()))) {
+    const items = lines
+      .map((line) => `<li>${renderInlineMarkdown(line.trim().replace(/^[-*]\s+/, ""))}</li>`)
+      .join("");
+    return `<ul>${items}</ul>`;
+  }
+
+  if (lines.length > 0 && lines.every((line) => /^\d+\.\s+/.test(line.trim()))) {
+    const items = lines
+      .map((line) => `<li>${renderInlineMarkdown(line.trim().replace(/^\d+\.\s+/, ""))}</li>`)
+      .join("");
+    return `<ol>${items}</ol>`;
+  }
+
+  return `<p>${renderInlineMarkdown(block).replace(/\n/g, "<br>")}</p>`;
+}
+
+function renderMarkdown(value) {
+  const codeBlocks = [];
+  let source = escapeHtml(value || "").replace(/\r\n/g, "\n").trim();
+  if (!source) {
+    return "";
+  }
+
+  source = source.replace(/```[^\n]*\n([\s\S]*?)```/g, (_, code) => {
+    const index = codeBlocks.length;
+    codeBlocks.push(`<pre><code>${code.trim()}</code></pre>`);
+    return `\n\n%%CODE_BLOCK_${index}%%\n\n`;
+  });
+
+  return source
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => renderMarkdownBlock(block, codeBlocks))
+    .join("");
+}
+
 function scrollToBottom() {
   transcript.scrollTop = transcript.scrollHeight;
 }
@@ -78,7 +153,7 @@ function renderAssistantMessage(response) {
     .join("");
 
   turn.innerHTML = `
-    <div class="bubble">${escapeHtml(response.answer || "")}</div>
+    <div class="bubble markdown">${renderMarkdown(response.answer || "")}</div>
     <div class="meta-row">
       <span class="meta-chip">Mode: ${escapeHtml(response.mode || "fallback")}</span>
       <span class="meta-chip">Confidence: ${Math.round((response.confidence || 0) * 100)}%</span>

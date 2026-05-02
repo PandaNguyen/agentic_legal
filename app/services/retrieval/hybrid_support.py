@@ -78,7 +78,7 @@ class SentenceTransformerDenseEncoder:
     @property
     def embedding_dimension(self) -> int:
         model = self._get_model()
-        dimension = model.get_sentence_embedding_dimension()
+        dimension = model.get_embedding_dimension()
         if dimension is None:
             raise ValueError(f"Unable to determine embedding dimension for model {self.model_name}")
         return int(dimension)
@@ -130,11 +130,13 @@ class SentenceTransformerDenseEncoder:
             self._model = SentenceTransformer(
                 self.model_name,
                 device=self.device,
+                cache_folder="./cache/hf_cache",
                 trust_remote_code=True,
                 model_kwargs=model_kwargs or None,
             )
         except TypeError:
             self._model = SentenceTransformer(self.model_name,
+                               cache_folder="./cache/hf_cache", trust_remote_code=True,               
              device=self.device)
 
         if self.use_fp16 and self.device and self.device.startswith("cuda") and hasattr(self._model, "half"):
